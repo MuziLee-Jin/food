@@ -1,9 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const db = require('./db.cjs');
-require('dotenv').config();
-const multer = require('multer');
-const path = require('path');
+import express from 'express';
+import cors from 'cors';
+import * as db from './db.js';
+import { supabase, bucket } from './supabase.js';
+import multer from 'multer';
+import path from 'path';
+import 'dotenv/config';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -24,14 +25,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'Missing file' });
     }
 
-    let supabaseConfig;
-    try {
-      supabaseConfig = require('./supabase.cjs');
-    } catch (e) {
-      return res.status(500).json({ error: e?.message || 'Storage not configured' });
+    if (!supabase) {
+      return res.status(500).json({ error: 'Storage not configured' });
     }
-
-    const { supabase, bucket } = supabaseConfig;
 
     const ext = path.extname(req.file.originalname || '').toLowerCase() || '.png';
     const filePath = `dishes/${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`;
@@ -131,12 +127,14 @@ router.delete('/dishes/:id', async (req, res) => {
   }
 });
 
+// 核心：处理 Vercel 路由映射
 app.use('/api', router);
+app.use('/', router); 
 
-if (require.main === module) {
+export default app;
+
+if (process.env.NODE_ENV !== 'production') {
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
   });
 }
-
-module.exports = app;
