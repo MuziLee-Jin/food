@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import { api } from '@/data/api'
 
@@ -23,10 +23,10 @@ export const useDishStore = defineStore('dish', () => {
     }
   }
 
-  // 这里的持久化逻辑在“纯前端”模式下需要监听 dishes 变化
-  watch(dishes, (newVal) => {
-    api.saveDishes(newVal)
-  }, { deep: true })
+  // 移除旧的整体监听保存逻辑，改为在 action 中单独调用 api
+  // watch(dishes, (newVal) => {
+  //   api.saveDishes(newVal)
+  // }, { deep: true })
 
   // --- Getters ---
   const getCartCount = (dishId) => {
@@ -83,30 +83,56 @@ export const useDishStore = defineStore('dish', () => {
     }
   }
 
-  const addDish = (newDish) => {
-    const maxId = dishes.value.length > 0 ? Math.max(...dishes.value.map(d => d.id)) : 0
-    dishes.value.push({
-      ...newDish,
-      id: maxId + 1,
-      available: true
-    })
+  const addDish = async (newDish) => {
+    // 乐观更新或等待返回
+    loading.value = true
+    try {
+        const added = await api.addDish({
+            ...newDish,
+            available: true
+        })
+        dishes.value.push(added)
+    } finally {
+        loading.value = false
+    }
   }
 
-  const toggleAvailable = (dishId) => {
+  const toggleAvailable = async (dishId) => {
     const dish = dishes.value.find(d => d.id === dishId)
     if (dish) {
+      // 乐观更新 UI
+      const originalStatus = dish.available
       dish.available = !dish.available
+      
+      try {
+          await api.updateDish(dishId, { available: dish.available })
+      } catch (e) {
+          // 失败回滚
+          dish.available = originalStatus
+          console.error(e)
+      }
     }
   }
-
-  const deleteDish = (dishId) => {
+  
+  const deleteDish = async (dishId) => {
     const index = dishes.value.findIndex(d => d.id === dishId)
     if (index > -1) {
-      dishes.value.splice(index, 1)
-    }
-    const cartIndex = cart.value.findIndex(c => c.dishId === dishId)
-    if (cartIndex > -1) {
-      cart.value.splice(cartIndex, 1)
+        // 乐观删除
+        const deletedDish = dishes.value[index]
+        dishes.value.splice(index, 1)
+        
+        // 购物车联动
+        const cartIndex = cart.value.findIndex(c => c.dishId === dishId)
+        if (cartIndex > -1) {
+            cart.value.splice(cartIndex, 1)
+        }
+
+        try {
+            await api.deleteDish(dishId)
+        } catch (e) {
+            // 失败恢复
+            dishes.value.splice(index, 0, deletedDish)
+        }
     }
   }
 

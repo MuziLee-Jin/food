@@ -3,7 +3,8 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDishStore } from '@/stores/dishStore'
 import { storeToRefs } from 'pinia'
-import { showToast, showDialog } from 'vant'
+import { showToast, showDialog, showLoadingToast } from 'vant'
+import { api } from '@/data/api'
 
 const router = useRouter()
 const store = useDishStore()
@@ -12,30 +13,54 @@ const { dishesByCategory, dishes, loading } = storeToRefs(store)
 const showAddPopup = ref(false)
 const showImport = ref(false)
 const importJson = ref('')
+const uploaderFiles = ref([])
+const uploadingImage = ref(false)
 
 onMounted(() => {
     store.init()
 })
 
+const onAfterRead = async (item) => {
+    const file = Array.isArray(item) ? item[0]?.file : item?.file
+    if (!file) return
+
+    uploadingImage.value = true
+    const toast = showLoadingToast({ message: '图片上传中...', forbidClick: true, duration: 0 })
+    try {
+        const url = await api.uploadImage(file)
+        newDish.image = url
+        showToast('上传成功')
+    } catch (e) {
+        console.error(e)
+        showToast('上传失败')
+    } finally {
+        toast.close()
+        uploadingImage.value = false
+    }
+}
+
 const newDish = reactive({
     name: '',
     category: '热菜',
     spicy: 0,
-    tagsStr: '', 
-    image: 'https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg'
+    tagsStr: '',
+    image: ''
 })
 
 const categories = ['热菜', '凉菜', '主食', '饮料', '汤羹']
 
-const onSubmit = () => {
+const onSubmit = async () => {
     if (!newDish.name) {
         showToast('菜名必填')
         return
     }
-    store.addDish({
-        ...newDish,
+    await store.addDish({
+        name: newDish.name,
+        category: newDish.category,
+        spicy: newDish.spicy,
         tags: newDish.tagsStr.split(/[,， ]/).filter(t => t),
-        description: '暂无描述'
+        description: '暂无描述',
+        image: newDish.image
     })
     showAddPopup.value = false
     showToast('添加成功')
@@ -44,6 +69,8 @@ const onSubmit = () => {
     newDish.name = ''
     newDish.tagsStr = ''
     newDish.spicy = 0
+    newDish.image = ''
+    uploaderFiles.value = []
 }
 
 const onDelete = (id) => {
@@ -176,10 +203,21 @@ const handleImport = () => {
 
                     <van-field v-model="newDish.tagsStr" name="tags" label="标签" placeholder="空格分隔，如：推荐 耗时" />
                     
-                    <van-field v-model="newDish.image" name="image" label="图片URL" placeholder="http://..." />
+                    <van-field name="imageUpload" label="图片">
+                        <template #input>
+                            <van-uploader
+                                v-model="uploaderFiles"
+                                :max-count="1"
+                                :after-read="onAfterRead"
+                                :disabled="uploadingImage"
+                            />
+                        </template>
+                    </van-field>
+
+                    <van-field v-model="newDish.image" name="image" label="图片URL" placeholder="上传后自动生成或手动填写" />
                 </van-cell-group>
                 <div style="margin: 24px 16px;">
-                    <van-button round block type="primary" native-type="submit">
+                    <van-button round block type="primary" native-type="submit" :loading="uploadingImage" :disabled="uploadingImage">
                     提交录入
                     </van-button>
                 </div>

@@ -1,25 +1,63 @@
-// 模拟 API 请求层，方便后续替换为真实的 axios/fetch 调用
-import { initialDishes } from './mock'
-
-const STORAGE_KEY = 'foodorder-dishes'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+  ? import.meta.env.VITE_API_BASE_URL
+  : (import.meta.env.DEV ? 'http://localhost:3000' : '')
 
 export const api = {
-  // 获取所有菜品
   fetchDishes: async () => {
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 500))
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : initialDishes
+    try {
+      const response = await fetch(`${API_BASE_URL}/dishes`)
+      if (!response.ok) throw new Error('Network response was not ok')
+      return await response.json()
+    } catch (error) {
+      console.error('Fetch dishes failed:', error)
+      return []
+    }
   },
 
-  // 保存所有菜品 (当前用于 LocalStorage 模式)
   saveDishes: async (dishes) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dishes))
     return true
   },
 
-  // 后续可以增加：
-  // createDish: (dish) => axios.post('/api/dishes', dish),
-  // updateDish: (id, dish) => axios.put(`/api/dishes/${id}`, dish),
-  // deleteDish: (id) => axios.delete(`/api/dishes/${id}`),
+  addDish: async (dish) => {
+    const response = await fetch(`${API_BASE_URL}/dishes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dish)
+    })
+    return await response.json()
+  },
+
+  updateDish: async (id, updates) => {
+    const response = await fetch(`${API_BASE_URL}/dishes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    })
+    return await response.json()
+  },
+
+  deleteDish: async (id) => {
+    await fetch(`${API_BASE_URL}/dishes/${id}`, {
+      method: 'DELETE'
+    })
+    return true
+  },
+
+  uploadImage: async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${API_BASE_URL}/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Upload failed')
+    }
+
+    const data = await response.json()
+    return data.url
+  }
 }
