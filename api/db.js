@@ -1,17 +1,16 @@
-import { Pool } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
 import 'dotenv/config';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-});
-
-// 测试连接
-pool.on('connect', () => {
-  console.log('Database connected successfully');
-});
-
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
+  ssl: {
+    rejectUnauthorized: false // 大多数云数据库（包括 Supabase）在生产环境需要这个配置
+  },
+  // 针对 Serverless 环境优化的配置
+  max: 1, // 限制单个 Serverless 函数的连接数
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000
 });
 
 export const query = (text, params) => pool.query(text, params);
