@@ -214,7 +214,7 @@ const generatePoster = async () => {
             <div class="poster-footer">
                 <div class="poster-total">共 {{ store.totalCartCount }} 道菜</div>
                 <div class="poster-sign">
-                    <span class="sign-icon">👨‍🍳</span> 私房小厨 · 诚意出品
+                    <span class="sign-icon">👨‍🍳</span> 幻光小厨 · 诚意出品
                 </div>
             </div>
         </div>

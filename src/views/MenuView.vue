@@ -117,7 +117,7 @@ const onLongPressAdmin = () => {
   <div class="menu-page">
     <van-nav-bar fixed placeholder>
         <template #title>
-            <span @touchstart="handleAdminEntry" @contextmenu.prevent="onLongPressAdmin">私房小厨</span>
+            <span @touchstart="handleAdminEntry" @contextmenu.prevent="onLongPressAdmin">幻光的小厨房</span>
         </template>
         <template #right>
             <van-icon name="setting-o" size="18" @click="router.push('/admin')" />
