@@ -1,18 +1,17 @@
-import { createClient } from '@supabase/supabase-js';
-import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js'
+import 'dotenv/config'
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-export const bucket = process.env.SUPABASE_BUCKET || 'dish-images';
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+export const bucket = process.env.SUPABASE_BUCKET || 'dish-images'
 
-const missing = [];
-if (!supabaseUrl) missing.push('SUPABASE_URL');
-if (!supabaseKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+const missing = []
+if (!supabaseUrl) missing.push('SUPABASE_URL')
+if (!supabaseKey) missing.push('SUPABASE_SERVICE_ROLE_KEY')
 if (missing.length > 0) {
-  // 在 Serverless 环境下不直接 throw，避免函数崩溃，改为在调用时检查
-  console.warn(`Storage env missing: ${missing.join(', ')}`);
+  console.warn(`Storage env missing: ${missing.join(', ')}`)
 }
 
-export const supabase = (supabaseUrl && supabaseKey) 
+export const supabase = (supabaseUrl && supabaseKey)
   ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
-  : null;
+  : null

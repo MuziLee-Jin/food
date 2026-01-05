@@ -138,6 +138,7 @@ const handleImport = () => {
                         class="admin-card"
                     >
                         <template #tags>
+                            <van-tag plain type="success" class="mr-1">已点{{ dish.order_count || 0 }}</van-tag>
                             <van-tag v-if="dish.spicy > 0" plain type="warning" class="mr-1">辣{{ dish.spicy }}</van-tag>
                             <van-tag plain type="danger" v-if="!dish.available">已估清</van-tag>
                         </template>

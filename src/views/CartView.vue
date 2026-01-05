@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useDishStore } from '@/stores/dishStore'
 import { showDialog, showToast, showImagePreview, showLoadingToast, closeToast } from 'vant'
 import html2canvas from 'html2canvas'
+import { api } from '@/data/api'
 
 const store = useDishStore()
 const router = useRouter()
@@ -60,6 +61,18 @@ const generatePoster = async () => {
         
         const imgUrl = canvas.toDataURL('image/png')
         loading.close()
+
+        try {
+            await api.submitOrder(cartList.value.map(i => ({
+                dishId: i.dishId,
+                quantity: i.count,
+                note: i.notes || ''
+            })))
+            await store.init()
+        } catch (e) {
+            console.error(e)
+            showToast('已生成海报，但点单统计记录失败')
+        }
         
         // 自动触发下载 (PC端友好，H5端主要靠长按)
         const link = document.createElement('a')

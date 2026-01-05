@@ -167,6 +167,8 @@ const onLongPressAdmin = () => {
                 </van-tag>
               </div>
 
+              <div class="dish-stats">已被点 {{ dish.order_count || 0 }} 次</div>
+
               <div class="dish-action">
                 <span class="price"></span> 
                 
@@ -256,6 +258,12 @@ const onLongPressAdmin = () => {
   padding: 10px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.dish-stats {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #969799;
 }
 
 .dish-img {

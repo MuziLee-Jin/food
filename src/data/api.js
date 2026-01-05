@@ -57,5 +57,20 @@ export const api = {
 
     const data = await response.json()
     return data.url
+  },
+
+  submitOrder: async (items) => {
+    const response = await fetch(`${API_BASE_URL}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || 'Submit failed')
+    }
+
+    return await response.json()
   }
 }
