@@ -11,6 +11,8 @@ const { dishesByCategory, totalCartCount, dishes, loading } = storeToRefs(store)
 
 const activeTab = ref(0)
 const searchText = ref('')
+const showDishDetail = ref(false)
+const selectedDish = ref(null)
 
 onMounted(() => {
   store.init()
@@ -38,6 +40,24 @@ const filteredDishesByCategory = computed(() => {
 
 const categories = computed(() => Object.keys(filteredDishesByCategory.value))
 
+const hotDishes = computed(() => {
+  const list = Array.isArray(dishes.value) ? dishes.value.slice() : []
+  const keyword = searchText.value ? searchText.value.toLowerCase() : ''
+
+  const filtered = keyword
+    ? list.filter(dish =>
+      dish.name.toLowerCase().includes(keyword) ||
+      dish.description.toLowerCase().includes(keyword) ||
+      dish.tags.some(t => t.toLowerCase().includes(keyword))
+    )
+    : list
+
+  return filtered
+    .filter(d => (d.order_count || 0) > 0)
+    .sort((a, b) => (b.order_count || 0) - (a.order_count || 0) || a.id - b.id)
+    .slice(0, 10)
+})
+
 const goToCart = () => {
   router.push('/cart')
 }
@@ -45,6 +65,11 @@ const goToCart = () => {
 const getCount = (dishId) => store.getCartCount(dishId)
 const add = (dishId) => store.updateCart(dishId, 1)
 const minus = (dishId) => store.updateCart(dishId, -1)
+
+const openDishDetail = (dish) => {
+  selectedDish.value = dish
+  showDishDetail.value = true
+}
 
 // Omakase 随机点菜
 const handleOmakase = () => {
@@ -119,11 +144,95 @@ const onLongPressAdmin = () => {
     </div>
 
     <!-- 加载状态 -->
-    <van-loading v-if="loading" vertical class="mt-20">加载菜单中...</van-loading>
+    <div v-if="loading" class="mt-20">
+        <van-skeleton title :row="4" />
+        <van-skeleton title :row="4" class="mt-12" />
+    </div>
 
     <!-- 菜单内容 -->
     <div class="menu-content" v-else>
       <van-tabs v-model:active="activeTab" sticky offset-top="46">
+        <van-tab title="热度榜">
+          <div class="dish-list">
+            <van-empty v-if="hotDishes.length === 0" description="暂无点单数据" />
+            <div
+              v-for="(dish, index) in hotDishes"
+              v-else
+              :key="dish.id"
+              class="dish-item"
+              :class="{ 'disabled': !dish.available }"
+              @click="openDishDetail(dish)"
+            >
+              <van-image
+                width="85"
+                height="85"
+                radius="8"
+                :src="dish.image"
+                fit="cover"
+                class="dish-img"
+              >
+                <template v-if="!dish.available" #error>
+                  <div class="sold-out-mask">今日估清</div>
+                </template>
+              </van-image>
+
+              <div class="dish-info">
+                <div class="dish-header">
+                  <div class="dish-title-row">
+                    <span class="rank-badge">#{{ index + 1 }}</span>
+                    <h3 class="dish-name">{{ dish.name }}</h3>
+                  </div>
+                  <div v-if="!dish.available" class="tag-sold-out">估清</div>
+                </div>
+
+                <div class="dish-desc van-multi-ellipsis--l2">{{ dish.description }}</div>
+
+                <div class="dish-tags">
+                  <van-tag
+                    v-for="tag in dish.tags"
+                    :key="tag"
+                    plain
+                    type="primary"
+                    size="mini"
+                    class="mr-4"
+                  >{{ tag }}</van-tag>
+                  <van-tag v-if="dish.spicy > 0" color="#ffe1e1" text-color="#ad0000" size="mini">
+                    {{ '🌶️'.repeat(dish.spicy) }}
+                  </van-tag>
+                </div>
+
+                <div class="dish-stats">已被点 {{ dish.order_count || 0 }} 次</div>
+
+                <div class="dish-action">
+                  <span class="price"></span>
+
+                  <div v-if="dish.available" class="stepper">
+                    <transition name="van-fade">
+                      <van-button
+                        v-if="getCount(dish.id) > 0"
+                        icon="minus"
+                        size="mini"
+                        round
+                        plain
+                        type="primary"
+                        @click.stop="minus(dish.id)"
+                      />
+                    </transition>
+                    <span v-if="getCount(dish.id) > 0" class="count">{{ getCount(dish.id) }}</span>
+                    <van-button
+                      icon="plus"
+                      size="mini"
+                      round
+                      type="primary"
+                      @click.stop="add(dish.id)"
+                    />
+                  </div>
+                  <div v-else class="text-disabled">暂不可点</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </van-tab>
         <van-tab v-for="category in categories" :key="category" :title="category">
           <div class="dish-list">
             <div 
@@ -131,6 +240,7 @@ const onLongPressAdmin = () => {
               :key="dish.id" 
               class="dish-item"
               :class="{ 'disabled': !dish.available }"
+              @click="openDishDetail(dish)"
             >
             <van-image 
               width="85" 
@@ -181,7 +291,7 @@ const onLongPressAdmin = () => {
                             round 
                             plain
                             type="primary"
-                            @click="minus(dish.id)"
+                            @click.stop="minus(dish.id)"
                         />
                     </transition>
                     <span v-if="getCount(dish.id) > 0" class="count">{{ getCount(dish.id) }}</span>
@@ -190,7 +300,7 @@ const onLongPressAdmin = () => {
                         size="mini" 
                         round 
                         type="primary"
-                        @click="add(dish.id)"
+                        @click.stop="add(dish.id)"
                     />
                 </div>
                 <div v-else class="text-disabled">暂不可点</div>
@@ -217,6 +327,46 @@ const onLongPressAdmin = () => {
         去选好了
       </div>
     </div>
+
+    <van-popup v-model:show="showDishDetail" position="bottom" round :style="{ maxHeight: '80vh' }">
+        <div class="dish-detail">
+            <div class="detail-header">
+                <div class="detail-title">{{ selectedDish?.name }}</div>
+                <van-icon name="cross" size="18" class="detail-close" @click="showDishDetail = false" />
+            </div>
+            <van-image
+                v-if="selectedDish?.image"
+                :src="selectedDish?.image"
+                width="100%"
+                height="220"
+                fit="cover"
+                radius="12"
+                class="detail-image"
+            />
+            <div class="detail-body">
+                <div class="detail-meta">
+                    <van-tag plain type="success">已点 {{ selectedDish?.order_count || 0 }}</van-tag>
+                    <van-tag v-if="selectedDish?.spicy > 0" color="#ffe1e1" text-color="#ad0000">
+                        {{ '🌶️'.repeat(selectedDish?.spicy || 0) }}
+                    </van-tag>
+                    <van-tag plain type="danger" v-if="selectedDish && !selectedDish.available">今日估清</van-tag>
+                </div>
+                <div class="detail-desc">{{ selectedDish?.description || '暂无描述' }}</div>
+                <div class="detail-tags" v-if="selectedDish?.tags?.length">
+                    <van-tag v-for="tag in selectedDish.tags" :key="tag" plain type="primary" class="mr-6">{{ tag }}</van-tag>
+                </div>
+            </div>
+            <div class="detail-footer">
+                <div v-if="selectedDish?.available" class="detail-stepper">
+                    <van-button icon="minus" size="small" round plain type="primary" :disabled="getCount(selectedDish?.id) <= 0" @click="minus(selectedDish.id)" />
+                    <div class="detail-count">{{ getCount(selectedDish?.id) }}</div>
+                    <van-button icon="plus" size="small" round type="primary" @click="add(selectedDish.id)" />
+                </div>
+                <van-button v-else block disabled round>暂不可点</van-button>
+                <van-button block round type="primary" class="mt-10" @click="goToCart" :disabled="totalCartCount <= 0">去购物车</van-button>
+            </div>
+        </div>
+    </van-popup>
   </div>
 </template>
 
@@ -247,6 +397,10 @@ const onLongPressAdmin = () => {
     margin-top: 80px;
 }
 
+.mt-12 {
+    margin-top: 12px;
+}
+
 .dish-list {
   padding: 12px;
 }
@@ -264,6 +418,77 @@ const onLongPressAdmin = () => {
   margin-top: 6px;
   font-size: 12px;
   color: #969799;
+}
+
+.dish-detail {
+  padding: 14px 14px 18px;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 2px 12px;
+}
+
+.detail-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #323233;
+}
+
+.detail-close {
+  color: #969799;
+  padding: 6px;
+}
+
+.detail-image {
+  margin-bottom: 12px;
+}
+
+.detail-body {
+  padding: 0 2px;
+}
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.detail-desc {
+  margin-top: 10px;
+  color: #646566;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.detail-tags {
+  margin-top: 10px;
+}
+
+.detail-footer {
+  padding: 14px 2px 0;
+}
+
+.detail-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.detail-count {
+  width: 44px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #323233;
+}
+
+.mt-10 {
+  margin-top: 10px;
 }
 
 .dish-img {
@@ -296,11 +521,32 @@ const onLongPressAdmin = () => {
     align-items: flex-start;
 }
 
+.dish-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rank-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #1989fa;
+  border: 1px solid rgba(25, 137, 250, 0.25);
+  background: rgba(25, 137, 250, 0.06);
+  padding: 1px 6px;
+  border-radius: 999px;
+  line-height: 18px;
+}
+
 .dish-name {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dish-desc {

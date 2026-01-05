@@ -15,6 +15,8 @@ const showImport = ref(false)
 const importJson = ref('')
 const uploaderFiles = ref([])
 const uploadingImage = ref(false)
+const sortMode = ref('default')
+const availabilityFilter = ref('all')
 
 onMounted(() => {
     store.init()
@@ -48,6 +50,32 @@ const newDish = reactive({
 })
 
 const categories = ['热菜', '凉菜', '主食', '饮料', '汤羹']
+
+const displayGroups = computed(() => {
+    const groups = {}
+
+    Object.entries(dishesByCategory.value).forEach(([category, group]) => {
+        let list = group.slice()
+
+        if (availabilityFilter.value === 'available') {
+            list = list.filter(d => d.available)
+        } else if (availabilityFilter.value === 'soldout') {
+            list = list.filter(d => !d.available)
+        }
+
+        if (sortMode.value === 'hot') {
+            list.sort((a, b) => (b.order_count || 0) - (a.order_count || 0))
+        } else {
+            list.sort((a, b) => a.id - b.id)
+        }
+
+        if (list.length > 0) {
+            groups[category] = list
+        }
+    })
+
+    return groups
+})
 
 const onSubmit = async () => {
     if (!newDish.name) {
@@ -127,7 +155,21 @@ const handleImport = () => {
     <van-loading v-if="loading" vertical class="mt-20">同步中...</van-loading>
 
     <div v-else class="list-container">
-        <template v-for="(group, category) in dishesByCategory" :key="category">
+        <div class="admin-filters">
+            <van-dropdown-menu>
+                <van-dropdown-item v-model="sortMode" :options="[
+                    { text: '默认排序', value: 'default' },
+                    { text: '按热度', value: 'hot' }
+                ]" />
+                <van-dropdown-item v-model="availabilityFilter" :options="[
+                    { text: '全部', value: 'all' },
+                    { text: '供应中', value: 'available' },
+                    { text: '已估清', value: 'soldout' }
+                ]" />
+            </van-dropdown-menu>
+        </div>
+
+        <template v-for="(group, category) in displayGroups" :key="category">
             <div class="category-title">{{ category }}</div>
             <van-cell-group inset class="mb-3">
                 <van-swipe-cell v-for="dish in group" :key="dish.id">
@@ -160,7 +202,7 @@ const handleImport = () => {
             </van-cell-group>
         </template>
         
-        <div class="empty-tip" v-if="Object.keys(dishesByCategory).length === 0">
+        <div class="empty-tip" v-if="Object.keys(displayGroups).length === 0">
             暂无菜品，快去添加吧
         </div>
         
@@ -252,6 +294,12 @@ const handleImport = () => {
 
 .mt-20 {
     margin-top: 80px;
+}
+
+.admin-filters {
+    position: sticky;
+    top: 46px;
+    z-index: 10;
 }
 
 .category-title {

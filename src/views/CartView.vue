@@ -2,7 +2,7 @@
 import { computed, ref, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDishStore } from '@/stores/dishStore'
-import { showDialog, showToast, showImagePreview, showLoadingToast, closeToast } from 'vant'
+import { showDialog, showToast, showImagePreview, showLoadingToast } from 'vant'
 import html2canvas from 'html2canvas'
 import { api } from '@/data/api'
 
@@ -11,6 +11,7 @@ const router = useRouter()
 
 const cartList = computed(() => store.cartDetailList)
 const posterRef = ref(null) // 海报 DOM 引用
+const submitting = ref(false)
 
 onMounted(() => {
     if (store.dishes.length === 0) {
@@ -44,6 +45,43 @@ const confirmClear = () => {
 const generatePoster = async () => {
     if (cartList.value.length === 0) return
 
+    try {
+        await showDialog({
+            title: '确认点餐',
+            message: '将记录本次点餐次数，并生成海报用于发送。',
+            showCancelButton: true
+        })
+    } catch (_) {
+        return
+    }
+
+    if (submitting.value) return
+    submitting.value = true
+
+    const submitToast = showLoadingToast({
+        message: '提交中...',
+        forbidClick: true,
+        duration: 0
+    })
+
+    let orderId = null
+    try {
+        const result = await api.submitOrder(cartList.value.map(i => ({
+            dishId: i.dishId,
+            quantity: i.count,
+            note: i.notes || ''
+        })))
+        orderId = result?.orderId
+        await store.init()
+        submitToast.close()
+    } catch (e) {
+        console.error(e)
+        submitToast.close()
+        submitting.value = false
+        showToast('提交失败，请重试')
+        return
+    }
+
     const loading = showLoadingToast({
         message: '海报生成中...',
         forbidClick: true,
@@ -62,16 +100,10 @@ const generatePoster = async () => {
         const imgUrl = canvas.toDataURL('image/png')
         loading.close()
 
-        try {
-            await api.submitOrder(cartList.value.map(i => ({
-                dishId: i.dishId,
-                quantity: i.count,
-                note: i.notes || ''
-            })))
-            await store.init()
-        } catch (e) {
-            console.error(e)
-            showToast('已生成海报，但点单统计记录失败')
+        if (orderId) {
+            showToast(`已记录点餐 #${orderId}`)
+        } else {
+            showToast('已记录点餐')
         }
         
         // 自动触发下载 (PC端友好，H5端主要靠长按)
@@ -88,11 +120,24 @@ const generatePoster = async () => {
                 showToast('已保存到相册(若支持)或请长按图片手动保存')
             }
         })
+
+        try {
+            await showDialog({
+                title: '完成',
+                message: '是否清空购物车？',
+                showCancelButton: true,
+                confirmButtonText: '清空',
+                cancelButtonText: '保留'
+            })
+            store.clearCart()
+        } catch (_) {}
         
     } catch (e) {
         console.error(e)
         loading.close()
         showToast('生成失败，请重试')
+    } finally {
+        submitting.value = false
     }
 }
 </script>
@@ -140,8 +185,8 @@ const generatePoster = async () => {
             </div>
             <div class="footer-actions">
                 <van-button plain type="danger" size="normal" round @click="confirmClear" class="mr-2">清空</van-button>
-                <van-button type="primary" size="normal" round class="submit-btn" icon="photo-o" @click="generatePoster">
-                    生成海报发送
+                <van-button type="primary" size="normal" round class="submit-btn" icon="photo-o" :loading="submitting" :disabled="submitting" @click="generatePoster">
+                    提交并生成海报
                 </van-button>
             </div>
         </div>
